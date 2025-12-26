@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poké-Case: Persistence Edition</title>
+    <style>
+        :root {
+            --comun: #7f8c8d; --raro: #3498db; --epico: #9b59b6; 
+            --legendario: #f1c40f; --shiny-gold: #ff4747; --god: #ffffff;
+            --bg: #0d1117; --panel: #161b22; --dex-light: #eef1f5;
+        }
+
+        * { box-sizing: border-box; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 0; margin: 0; overflow-x: hidden; }
+        
+        .header-stats { background: rgba(22, 27, 34, 0.95); width: 100%; padding: 15px; border-bottom: 1px solid #30363d; display: flex; justify-content: center; gap: 30px; position: sticky; top: 0; z-index: 1000; backdrop-filter: blur(8px); }
+        .lucky-counter { color: #00d2ff; font-weight: bold; border-left: 2px solid #444; padding-left: 20px; }
+        .bonus-active { color: #ff00ff; text-shadow: 0 0 10px #ff00ff; animation: pulse 0.8s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+        .main-container { width: 100%; max-width: 1100px; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+
+        .roulette-wrapper { position: relative; width: 100%; max-width: 800px; height: 180px; background: var(--panel); border: 3px solid #30363d; overflow: hidden; border-radius: 15px; margin: 20px 0; }
+        .selector { position: absolute; left: 50%; top: 0; width: 4px; height: 100%; background: #ff4747; z-index: 10; transform: translateX(-50%); box-shadow: 0 0 15px rgba(255, 71, 71, 0.5); }
+        .items-container { display: flex; position: absolute; left: 0; top: 10px; will-change: transform; }
+
+        .item { width: 140px; height: 150px; margin: 0 10px; background: #21262d; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; border-bottom: 5px solid #555; }
+        .item img { width: 75px; height: 75px; object-fit: contain; }
+
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 20px; }
+        button { padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; border: 1px solid #30363d; transition: all 0.2s; font-size: 0.9rem; }
+        .btn-spin { background: #238636; color: white; border: none; }
+        .btn-turbo { background: #8957e5; color: white; border: none; }
+        .btn-speed { background: #21262d; color: white; }
+        .btn-speed.active { background: #f1c40f; color: black; border-color: #f1c40f; }
+
+        .section-title { width: 100%; border-bottom: 1px solid #30363d; padding: 10px 0; margin-top: 30px; display: flex; justify-content: space-between; align-items: center; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; width: 100%; padding: 20px 0; }
+        
+        .card { background: var(--panel); border: 1px solid #30363d; padding: 10px; border-radius: 10px; text-align: center; position: relative; }
+        .card img { width: 60px; height: 60px; }
+        .card.is-shiny { background: radial-gradient(circle, #4b1616 0%, #161b22 100%) !important; border-color: var(--shiny-gold) !important; }
+        
+        #pokedex-grid .card { background: var(--dex-light); color: #1f2328; border-color: #d0d7de; }
+        #pokedex-grid .card.locked { opacity: 0.6; filter: grayscale(0.95); }
+
+        .stack-badge { position: absolute; top: 5px; right: 5px; background: #238636; color: white; padding: 1px 6px; border-radius: 8px; font-size: 10px; }
+        .shiny-star { position: absolute; top: 5px; left: 8px; color: gold; font-size: 16px; }
+        
+        .r-5 { border-color: var(--god) !important; border-width: 2px; }
+        .r-4 { border-color: var(--legendario) !important; border-width: 2px; }
+        .r-3 { border-color: var(--epico) !important; }
+        .r-2 { border-color: var(--raro) !important; }
+        .prob-label { font-size: 9px; color: #8b949e; margin-top: 5px; font-family: monospace; display: block; }
+    </style>
+</head>
+<body>
+
+    <div class="header-stats">
+        <div>Tiradas: <b id="stat-tries">0</b></div>
+        <div style="color: var(--shiny-gold)">Shinies: <b id="stat-shinies">0</b></div>
+        <div class="lucky-counter" id="lucky-box">Doble Suerte en: <span id="lucky-num">10</span></div>
+        <button onclick="resetGame()" style="background:#cc0000; color:white; padding:2px 10px; font-size:10px; margin-left:20px">RESET TODO</button>
+    </div>
+
+    <div class="main-container">
+        <div class="controls">
+            <button id="s1" class="btn-speed active" onclick="setSpeed(1)">Velocidad x1</button>
+            <button id="s2" class="btn-speed" onclick="setSpeed(2)">Velocidad x2</button>
+            <button id="btn-spin" class="btn-spin" onclick="runSpin(1)">ABRIR CAJA</button>
+            <button id="btn-turbo" class="btn-turbo" onclick="runSpin(10)">TURBO SPEED (SKIP)</button>
+        </div>
+
+        <div class="roulette-wrapper">
+            <div class="selector"></div>
+            <div id="container" class="items-container"></div>
+        </div>
+
+        <div class="section-title"><span>Inventario</span></div>
+        <div id="inventory-grid" class="grid"></div>
+
+        <div class="section-title">
+            <span>Pokedex</span>
+            <button style="background:#d29922; border:none; color:black; padding:5px 12px; font-size: 0.8rem; border-radius:4px" onclick="toggleDex()">Modo Shiny</button>
+        </div>
+        <div id="pokedex-grid" class="grid"></div>
+    </div>
+
+    <script>
+        const NAMES = {493:"Arceus",494:"Victini",483:"Dialga",484:"Palkia",487:"Giratina",150:"Mewtwo",151:"Mew",144:"Articuno",145:"Zapdos",146:"Moltres",243:"Raikou",244:"Entei",245:"Suicune",249:"Lugia",250:"Ho-Oh",380:"Latias",381:"Latios",382:"Kyogre",383:"Groudon",384:"Rayquaza",385:"Jirachi",386:"Deoxys",480:"Uxie",481:"Mesprit",482:"Azelf",491:"Darkrai",492:"Shaymin",3:"Venusaur",6:"Charizard",9:"Blastoise",59:"Arcanine",65:"Alakazam",68:"Machamp",94:"Gengar",103:"Exeggutor",130:"Gyarados",131:"Lapras",143:"Snorlax",149:"Dragonite",212:"Scizor",214:"Heracross",242:"Blissey",248:"Tyranitar",254:"Sceptile",257:"Blaziken",260:"Swampert",282:"Gardevoir",289:"Slaking",306:"Aggron",330:"Flygon",334:"Altaria",350:"Milotic",359:"Absol",373:"Salamence",376:"Metagross",445:"Garchomp",448:"Lucario",462:"Magnezone",464:"Rhyperior",466:"Electivire",467:"Magmortar",468:"Togekiss",475:"Gallade",1:"Bulbasaur",4:"Charmander",7:"Squirtle",25:"Pikachu",37:"Vulpix",38:"Ninetales",39:"Jigglypuff",58:"Growlithe",63:"Abra",66:"Machop",77:"Ponyta",78:"Rapidash",92:"Gastly",133:"Eevee",134:"Vaporeon",135:"Jolteon",136:"Flareon",147:"Dratini",152:"Chikorita",155:"Cyndaquil",158:"Totodile",175:"Togepi",179:"Mareep",181:"Ampharos",196:"Espeon",197:"Umbreon",215:"Sneasel",227:"Skarmory",228:"Houndour",229:"Houndoom",230:"Kingdra",252:"Treecko",255:"Torchic",258:"Mudkip",281:"Kirlia",304:"Aron",328:"Trapinch",355:"Duskull",403:"Shinx",405:"Luxray",443:"Gible",447:"Riolu",470:"Leafeon",471:"Glaceon",700:"Sylveon",10:"Caterpie",13:"Weedle",16:"Pidgey",19:"Rattata",21:"Spearow",23:"Ekans",27:"Sandshrew",29:"Nidoran♀",32:"Nidoran♂",41:"Zubat",43:"Oddish",46:"Paras",48:"Venonat",50:"Diglett",52:"Meowth",54:"Psyduck",60:"Poliwag",69:"Bellsprout",72:"Tentacool",74:"Geodude",81:"Magnemite",98:"Krabby",100:"Voltorb",104:"Cubone",109:"Koffing",116:"Horsea",118:"Goldeen",120:"Staryu",129:"Magikarp",161:"Sentret",163:"Hoothoot",165:"Ledyba",167:"Spinarak",172:"Pichu",183:"Marill",187:"Hoppip",191:"Sunkern",194:"Wooper",204:"Pineco",209:"Snubbull",218:"Slugma",220:"Swinub",223:"Remoraid",263:"Zigzagoon",265:"Wurmple",273:"Seedot",276:"Taillow",278:"Wingull",285:"Shroomish",293:"Whismur",298:"Azurill",300:"Skitty",309:"Electrike",311:"Plusle",312:"Minun",316:"Gulpin",318:"Carvanha",320:"Wailmer",322:"Numel",325:"Spoink",333:"Swablu",339:"Barboach",341:"Corphish",361:"Snorunt",363:"Spheal",370:"Luvdisc",390:"Chimchar",393:"Piplup",396:"Starly",399:"Bidoof",401:"Kricketot"};
+
+        const POKE_DATA = {
+            god: { prob: 0.001, ids: [493, 494, 483, 484, 487] },
+            legend: { prob: 0.029, ids: [150, 151, 144, 145, 146, 243, 244, 245, 249, 250, 380, 381, 382, 383, 384, 385, 386, 480, 481, 482, 491, 492] },
+            epic: { prob: 0.09, ids: [3, 6, 9, 59, 65, 68, 94, 103, 130, 131, 143, 149, 212, 214, 242, 248, 254, 257, 260, 282, 289, 306, 330, 334, 350, 359, 373, 376, 445, 448, 462, 464, 466, 467, 468, 475] },
+            rare: { prob: 0.18, ids: [1, 4, 7, 25, 37, 38, 39, 58, 63, 66, 77, 78, 92, 133, 134, 135, 136, 147, 152, 155, 158, 175, 179, 181, 196, 197, 215, 227, 228, 229, 230, 252, 255, 258, 281, 304, 328, 355, 403, 405, 443, 447, 470, 471, 700] },
+            common: { prob: 0.70, ids: [10, 13, 16, 19, 21, 23, 27, 29, 32, 41, 43, 46, 48, 50, 52, 54, 60, 69, 72, 74, 81, 98, 100, 104, 109, 116, 118, 120, 129, 161, 163, 165, 167, 172, 183, 187, 191, 194, 204, 209, 218, 220, 223, 263, 265, 273, 276, 278, 285, 293, 298, 300, 309, 311, 312, 316, 318, 320, 322, 325, 333, 339, 341, 361, 363, 370, 390, 393, 396, 399, 401] }
+        };
+
+        // Estado inicial cargado desde LocalStorage
+        let state = JSON.parse(localStorage.getItem('pokeCaseSave')) || {
+            tries: 0, shinies: 0, lucky: 10, inv: [], caught: [], caughtS: []
+        };
+        
+        // Convertir arrays a Sets para velocidad
+        let caughtSet = new Set(state.caught);
+        let caughtSSet = new Set(state.caughtS);
+        let speed = 1, isShinyDex = false;
+
+        const dom = {
+            container: document.getElementById('container'),
+            invGrid: document.getElementById('inventory-grid'),
+            dexGrid: document.getElementById('pokedex-grid'),
+            luckyNum: document.getElementById('lucky-num'),
+            luckyBox: document.getElementById('lucky-box'),
+            btnSpin: document.getElementById('btn-spin'),
+            btnTurbo: document.getElementById('btn-turbo')
+        };
+
+        function saveData() {
+            state.caught = [...caughtSet];
+            state.caughtS = [...caughtSSet];
+            localStorage.setItem('pokeCaseSave', JSON.stringify(state));
+        }
+
+        function resetGame() { if(confirm("¿Borrar todo tu progreso?")) { localStorage.removeItem('pokeCaseSave'); location.reload(); } }
+
+        function setSpeed(s) { speed = s; document.getElementById('s1').classList.toggle('active', s==1); document.getElementById('s2').classList.toggle('active', s==2); }
+
+        function getRandom(isLucky) {
+            const r = Math.random(), isS = Math.random() < (isLucky ? 2/10000 : 1/10000);
+            let acc = 0;
+            for (const [key, d] of Object.entries(POKE_DATA)) {
+                let p = (isLucky && key !== 'common') ? d.prob * 2 : d.prob;
+                if (isLucky && key === 'common') p = 1 - 0.6;
+                acc += p;
+                if (r < acc) {
+                    const id = d.ids[Math.floor(Math.random() * d.ids.length)];
+                    const pInd = (p / d.ids.length * 100);
+                    return { id, name: NAMES[id], val: key==='god'?5:key==='legend'?4:key==='epic'?3:key==='rare'?2:1, isShiny: isS, pStr: (isS?pInd/10000:pInd).toFixed(isS?8:4)+"%" };
+                }
+            }
+        }
+
+        function runSpin(turbo) {
+            const isL = state.lucky <= 0;
+            state.tries++; document.getElementById('stat-tries').textContent = state.tries;
+            const winner = getRandom(isL);
+            dom.btnSpin.disabled = dom.btnTurbo.disabled = true;
+            dom.container.innerHTML = ''; dom.container.style.transition = 'none'; dom.container.style.transform = 'translateX(0)';
+
+            const fragment = document.createDocumentFragment();
+            for(let i=0; i<60; i++) {
+                const p = i===50 ? winner : getRandom(false);
+                const el = document.createElement('div');
+                el.className = `item r-${p.val} ${p.isShiny?'is-shiny':''}`;
+                el.innerHTML = `<img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png"><span class="prob-label">${p.pStr}</span>`;
+                fragment.appendChild(el);
+            }
+            dom.container.appendChild(fragment);
+
+            const time = (5 / speed) / turbo;
+            setTimeout(() => {
+                dom.container.style.transition = `transform ${time}s cubic-bezier(0.15, 0, 0.15, 1)`;
+                dom.container.style.transform = `translateX(-${(50*160)-400+80}px)`;
+                setTimeout(() => {
+                    processWinner(winner);
+                    state.lucky = isL ? 10 : state.lucky - 1;
+                    updateLuckyUI();
+                    dom.btnSpin.disabled = dom.btnTurbo.disabled = false;
+                    saveData();
+                }, (time * 1000) + 100);
+            }, 50);
+        }
+
+        function processWinner(p) {
+            if (p.isShiny) { state.shinies++; caughtSSet.add(p.id); state.inv.push({...p, count: 1}); }
+            else { caughtSet.add(p.id); const ex = state.inv.find(i => i.id === p.id && !i.isShiny); if (ex) ex.count++; else state.inv.push({...p, count: 1}); }
+            document.getElementById('stat-shinies').textContent = state.shinies;
+            renderInv(); renderDex();
+        }
+
+        function updateLuckyUI() {
+            dom.luckyNum.textContent = state.lucky <= 0 ? "¡LISTO!" : state.lucky;
+            state.lucky <= 0 ? dom.luckyBox.classList.add('bonus-active') : dom.luckyBox.classList.remove('bonus-active');
+        }
+
+        function renderInv() {
+            const frag = document.createDocumentFragment();
+            state.inv.sort((a,b) => b.val - a.val || b.isShiny - a.isShiny).forEach(p => {
+                const div = document.createElement('div');
+                div.className = `card r-${p.val} ${p.isShiny?'is-shiny':''}`;
+                div.innerHTML = `${p.isShiny?'<span class="shiny-star">★</span>':''}${p.count>1?`<span class="stack-badge">x${p.count}</span>`:''}
+                    <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png">
+                    <div><b>${p.name}</b></div><span class="prob-label">${p.pStr}</span>`;
+                frag.appendChild(div);
+            });
+            dom.invGrid.innerHTML = ''; dom.invGrid.appendChild(frag);
+        }
+
+        function renderDex() {
+            const frag = document.createDocumentFragment();
+            const dataArr = [];
+            for(const [k, d] of Object.entries(POKE_DATA)) d.ids.forEach(id => {
+                const pi = (d.prob / d.ids.length * 100);
+                dataArr.push({id, val: k==='god'?5:k==='legend'?4:k==='epic'?3:k==='rare'?2:1, name: NAMES[id], p: (isShinyDex?pi/10000:pi).toFixed(isShinyDex?10:4)+"%"});
+            });
+            dataArr.sort((a,b)=>b.val-a.val||a.id-b.id).forEach(p => {
+                const has = isShinyDex ? caughtSSet.has(p.id) : caughtSet.has(p.id);
+                const div = document.createElement('div');
+                div.className = `card r-${p.val} ${isShinyDex?'is-shiny':''} ${!has?'locked':''}`;
+                div.innerHTML = `<img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${p.id}.png">
+                    <div class="name-text"><b>${has?p.name:'???'}</b></div><span class="prob-label">${p.p}</span>`;
+                frag.appendChild(div);
+            });
+            dom.dexGrid.innerHTML = ''; dom.dexGrid.appendChild(frag);
+        }
+
+        function toggleDex() { isShinyDex = !isShinyDex; renderDex(); }
+
+        // Inicializar interfaz
+        document.getElementById('stat-tries').textContent = state.tries;
+        document.getElementById('stat-shinies').textContent = state.shinies;
+        updateLuckyUI();
+        renderInv();
+        renderDex();
+        for(let i=0; i<8; i++) dom.container.appendChild(document.createElement('div'));
+    </script>
+</body>
+</html>
